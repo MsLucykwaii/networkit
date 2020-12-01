@@ -1,4 +1,4 @@
-/*
+ /*
  * TopCloseness.cpp
  *
  *  Created on: 03.10.2014
@@ -15,6 +15,7 @@
 #include <networkit/centrality/TopCloseness.hpp>
 #include <networkit/components/ConnectedComponents.hpp>
 #include <networkit/graph/BFS.hpp>
+#include <networkit/graph/GraphTools.hpp>
 
 #include <tlx/container/d_ary_addressable_int_heap.hpp>
 #include <tlx/container/d_ary_heap.hpp>
@@ -39,10 +40,10 @@ void TopCloseness::init() {
     DEBUG("k = ", k);
     farness.clear();
     farness.resize(n, 0);
-    if (sec_heu) {
-        nodesPerLevs.resize(omp_get_max_threads(), std::vector<count>(n));
-        sumLevels.resize(omp_get_max_threads(), std::vector<count>(n));
-    }
+
+    nodesPerLevs.resize(omp_get_max_threads(), std::vector<count>(n));
+    sumLevels.resize(omp_get_max_threads(), std::vector<count>(n));
+
     computeReachable();
     DEBUG("Done INIT");
 }
@@ -421,6 +422,16 @@ double TopCloseness::BFScut(node v, double x, std::vector<bool> &visited,
 
 void TopCloseness::run() {
     init();
+    //my Code
+    float degrees= 0;
+    float sigadjustment = 20;
+    for(int i = 0;i < std::sqrt(G.numberOfNodes());i++){
+    	degrees += G.degree(GraphTools::randomNode(G));
+    }
+    degrees /= std::sqrt(G.numberOfNodes());
+
+    float algProbability = 0.5*(1+std::tanh(2/(degrees-sigadjustment)));
+    //my Code End
     tlx::d_ary_heap<node, 2, LargerFarness> top{farness};
     top.reserve(k);
     std::vector<bool> toAnalyze(n, true);
@@ -456,11 +467,9 @@ void TopCloseness::run() {
     std::vector<std::vector<count>> distVec;
     std::vector<std::vector<node>> predVec;
 
-    if (!sec_heu) {
-        visitedVec.resize(omp_get_max_threads(), std::vector<bool>(n));
-        distVec.resize(omp_get_max_threads(), std::vector<count>(n));
-        predVec.resize(omp_get_max_threads(), std::vector<node>(n));
-    }
+    visitedVec.resize(omp_get_max_threads(), std::vector<bool>(n));
+    distVec.resize(omp_get_max_threads(), std::vector<count>(n));
+    predVec.resize(omp_get_max_threads(), std::vector<node>(n));
 
     double kth = std::numeric_limits<double>::max(); // like in Crescenzi
 #pragma omp parallel                                 // Shared variables:
@@ -491,7 +500,9 @@ void TopCloseness::run() {
                 break;
             }
             DEBUG("Iteration ", ++iters, " of thread ", omp_get_thread_num());
-
+            //my Code
+            float algProbabilityon = 0.5*(1+std::tanh(2/(G.degree(s)-sigadjustment)));
+            //my Code end
             DEBUG("    Extracted node ", s, " with priority ", farness[s], ".");
             if (G.degreeOut(s) == 0) {
 
